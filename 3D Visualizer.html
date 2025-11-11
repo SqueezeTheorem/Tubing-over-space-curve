@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generalized Frenet-Serret Curve and Tube App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* CSS FIX: Lock the body/html height and prevent main window scrolling */
+        html, body { 
+            height: 100%; 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: 'Inter', sans-serif;
+        }
+
+        #scene-container {
+            /* Now uses calculated height based on viewport, header, and tutorial controls */
+            width: 100%;
+            max-width: 56rem; 
+            /* Fixed height to prevent vertical shifting */
+            height: calc(50vh - 1rem); /* 50% of viewport height minus margin */
+            background-color: #1f2937; 
+            margin: 0.5rem auto; 
+            border-radius: 0.75rem; 
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); 
+        }
+        canvas { display: block; }
+        .tutorial-content {
+            background-color: #ffffff;
+            color: #111827;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            max-width: 90%;
+            margin: 1rem auto;
+            max-width: 56rem; 
+        }
+        .math {
+            font-family: 'Times New Roman', serif;
+            font-size: 1.1rem;
+            background-color: #f3f4f6;
+            padding: 0.75rem; 
+            border-radius: 0.5rem;
+            margin: 0.75rem 0;
+            overflow-x: auto;
+            text-align: center; 
+        }
+        .inline-math {
+            display: inline;
+            white-space: nowrap;
+        }
+        .katex-display {
+            margin: 0 !important; 
+        }
+    </style>
+    <!-- Three.js and OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- KaTeX for math rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" xintegrity="sha384-GvrxHl6Xh3s0l4i8W1uFpW4r8/h20sE6G1uFpW4r8/h20sE6G1u8F4eP1Kj4Oa2Z5L1WvI2X" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" xintegrity="sha384-v+h6R42EwWjT9xU5L0/J2N5W/oT25A6G4A7Q9bF7R7Vw5+R9I5u/W02C6y1J2X" crossorigin="anonymous"></script>
+</head>
+<body class="bg-gray-100 flex flex-col h-screen">
+
+    <div class="p-4 bg-indigo-700 text-white shadow-lg flex-shrink-0">
+        <h1 class="text-3xl font-bold text-center">Generalized Curve and Frenet Frame Visualizer</h1>
+    </div>
+
+    <div id="scene-container" class="flex-shrink-0"></div>
+
+    <div class="flex-grow overflow-y-auto pb-4">
+        <div class="tutorial-content lg:max-w-4xl" id="tutorial-content">
+            
+            <div id="curve-input-container" class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                <h2 class="text-xl font-semibold mb-3 text-indigo-700">Define Your Space Curve <span class="inline-math" id="r-t-header">\mathbf{r}(t)</span></h2>
+                
+                <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-4 text-sm text-gray-700 rounded-lg">
+                    <p class="font-bold text-yellow-800 mb-2">Function Input Rules:</p>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li>You **must** use the parameter variable <code class="bg-yellow-100 p-1 rounded font-mono">t</code> in your expression. This variable runs from <span class="inline-math" id="t-range-0">0</span> to <span class="inline-math" id="t-range-2pi">2\pi</span>.</li>
+                        <li>All mathematical functions **must** be prefixed with <code class="bg-yellow-100 p-1 rounded font-mono">Math.</code> (e.g., <code class="bg-yellow-100 p-1 rounded font-mono">Math.cos(t)</code>, <code class="bg-yellow-100 p-1 rounded font-mono">Math.sin(t)</code>).</li>
+                        <li>Use standard JavaScript syntax for operations (e.g., <code class="font-mono">*</code> for multiplication, <code class="font-mono">**</code> or <code class="font-mono">Math.pow()</code> for exponents).</li>
+                        <li>**Available Constants/Functions:** <code class="font-mono">Math.PI</code>, <code class="font-mono">Math.cos()</code>, <code class="font-mono">Math.sin()</code>, <code class="font-mono">Math.tan()</code>, <code class="font-mono">Math.sqrt()</code>, <code class="font-mono">Math.exp()</code>, <code class="font-mono">Math.log()</code>, etc.</li>
+                    </ul>
+                    <p class="mt-2">**Example Curve (Figure-Eight):** <span class="inline-math" id="example-r-t">\mathbf{r}(t) = \left\langle 10 \cos(t), 5 \sin(2t), 5 \sin(t) \right\rangle</span></p>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">X component: (e.g., <code class="font-mono">10 * Math.cos(t)</code>)</label>
+                        <input type="text" id="x-func" value="10 * Math.cos(t)" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm font-mono text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Y component: (e.g., <code class="font-mono">5 * Math.sin(2 * t)</code>)</label>
+                        <input type="text" id="y-func" value="5 * Math.sin(2 * t)" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm font-mono text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Z component: (e.g., <code class="font-mono">5 * Math.sin(t)</code>)</label>
+                        <input type="text" id="z-func" value="5 * Math.sin(t)" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm font-mono text-sm">
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row items-center justify-between mt-4">
+                    <div class="w-full sm:w-1/3 mb-4 sm:mb-0 mr-4">
+                        <label for="radius-input" class="block text-sm font-medium text-gray-700">Constant Tube Radius <span class="inline-math" id="radius-a">a</span>:</label>
+                        <input type="number" id="radius-input" min="0.05" max="1.0" value="0.2" step="0.05" class="w-full p-2 border border-gray-300 rounded-lg text-center shadow-sm font-mono text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+
+                    <div class="w-full sm:w-2/3 flex space-x-2">
+                        <button id="generate-button" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150 shadow-md">
+                            Generate Curve & Tube
+                        </button>
+                    </div>
+                </div>
+                <p id="error-message" class="text-red-600 mt-2 font-semibold hidden"></p>
+            </div>
+
+            <div id="tutorial-title" class="text-2xl font-semibold mb-3"></div>
+            <div id="tutorial-text" class="text-gray-700 mb-4"></div>
+
+            <div class="flex flex-col sm:flex-row items-center justify-between mt-6 pt-4 border-t border-gray-200">
+                
+                <div class="w-full sm:w-1/3 mb-4 sm:mb-0 mr-4">
+                    <label for="u-slider" class="block text-sm font-medium text-gray-700">Position along curve <span class="inline-math" id="u-param">u</span> (0 to 1): <span id="u-value">0.50</span></label>
+                    <input type="range" id="u-slider" min="0" max="1" value="0.5" step="0.001" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                </div>
+
+                <div class="flex space-x-3 mt-4 sm:mt-0">
+                    <button id="prev-button" onclick="navigate(-1)" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg transition duration-150">
+                        Previous
+                    </button>
+                    <button id="next-button" onclick="navigate(1)" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150">
+                        Next Step
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // Global variables for Three.js
+        let scene, camera, renderer, trefoilCurve, centralPoint, tubeMesh, pathLine, circleMesh, controls, axesHelper;
+        let T_arrow, N_arrow, B_arrow;
+        let currentU = 0.5;
+        let currentRadius = 0.2; 
+        let currentStep = 0;
+        const totalSteps = 6;
+        
+        // Parameter length for the full curve: 2*pi
+        const curveLength = Math.PI * 2; 
+        const tubularSegments = 256;
+        const radialSegments = 32; // FIX: Increased segments for smoother tube
+        let isCurveValid = true;
+
+        // --- 1. User Defined Curve Class ---
+        class UserDefinedCurve extends THREE.Curve {
+            constructor(xFuncString, yFuncString, zFuncString) {
+                super();
+                this.xFunc = null;
+                this.yFunc = null;
+                this.zFunc = null;
+                this.isValid = false;
+                
+                // Attempt to compile functions
+                try {
+                    // Use new Function to create a function that takes 't' and returns the result
+                    this.xFunc = new Function('t', 'return ' + xFuncString);
+                    this.yFunc = new Function('t', 'return ' + yFuncString);
+                    this.zFunc = new Function('t', 'return ' + zFuncString);
+                    
+                    // Quick check to ensure functions run without error at t=0
+                    this.xFunc(0); 
+                    this.yFunc(0);
+                    this.zFunc(0);
+                    
+                    this.isValid = true;
+                } catch (e) {
+                    // If compilation fails, mark as invalid
+                    this.isValid = false;
+                    console.error("Curve function parsing error:", e);
+                    throw new Error("Invalid function definition: " + e.message);
+                }
+            }
+
+            getPoint(u, optionalTarget = new THREE.Vector3()) {
+                const target = optionalTarget;
+                // Scale u (0 to 1) to t (0 to 2*PI) for the user's function
+                const t = u * curveLength;
+
+                if (!this.isValid) return target.set(0, 0, 0);
+
+                try {
+                    // We must execute the compiled function
+                    const x = this.xFunc(t);
+                    const y = this.yFunc(t);
+                    const z = this.zFunc(t);
+                    
+                    // Safety check for NaN or infinite results
+                    if (isNaN(x) || isNaN(y) || isNaN(z) || !isFinite(x) || !isFinite(y) || !isFinite(z)) {
+                        throw new Error("Function returned NaN or Infinity. Check domain/division by zero.");
+                    }
+
+                    return target.set(x, y, z);
+                } catch (e) {
+                    console.error("Curve evaluation error at u=" + u, e);
+                    // This error is caught by initializeCurve, which sets the scene state
+                    throw new Error("Curve calculation failed at t=" + t.toFixed(2)); 
+                }
+            }
+        }
+
+        // --- 2. T, N, B Frame Calculation ---
+        function getFrenetFrame(u) {
+            if (!isCurveValid) return { P: new THREE.Vector3(), T: new THREE.Vector3(), N: new THREE.Vector3(), B: new THREE.Vector3() };
+
+            const point = trefoilCurve.getPoint(u);
+
+            // T (Tangent) - Use built-in numerical approximation
+            const T = trefoilCurve.getTangent(u).normalize();
+            
+            // N (Normal) & B (Binormal) - Numerical approximation
+            // We need T' (derivative of T) to find the Normal (N)
+            const delta = 0.0001;
+            
+            // Get a nearby tangent vector
+            const T_u = trefoilCurve.getTangent(u);
+            const T_next = trefoilCurve.getTangent(u + delta); 
+
+            // T_prime_approx (approximates the direction of change in T, which is proportional to N)
+            const T_prime_approx = T_next.clone().sub(T_u);
+
+            // B (Binormal): T x T' 
+            const B = T.clone().cross(T_prime_approx).normalize();
+
+            // N (Normal): B x T (ensures it is perpendicular to both)
+            const N = B.clone().cross(T).normalize();
+
+            // Handle pathological points (e.g., zero curvature/torsion)
+            if (T.lengthSq() < 1e-6 || N.lengthSq() < 1e-6 || B.lengthSq() < 1e-6 || isNaN(N.x)) {
+                 // Fallback: T is already set, we need N and B to be orthogonal to T
+                 // Arbitrary perpendicular vectors (Gram-Schmidt method or simply check component)
+                 const arbitraryVec = new THREE.Vector3(1, 0, 0);
+                 if (Math.abs(T.dot(arbitraryVec)) > 0.9) arbitraryVec.set(0, 1, 0);
+                 
+                 const N_fallback = T.clone().cross(arbitraryVec).normalize();
+                 const B_fallback = T.clone().cross(N_fallback).normalize();
+                 
+                 return { 
+                    P: point, 
+                    T: T, 
+                    N: N_fallback, 
+                    B: B_fallback
+                 };
+            }
+
+            return {
+                P: point, // Position
+                T: T,     // Tangent
+                N: N,     // Normal
+                B: B      // Binormal
+            };
+        }
+
+        // --- 3a. Helper for Tube and Circle creation/regeneration ---
+        function regenerateTubeAndCircle() {
+            // 1. Dispose of old geometry and mesh if they exist
+            if (tubeMesh) {
+                scene.remove(tubeMesh);
+                tubeMesh.geometry.dispose();
+            }
+            if (pathLine) {
+                scene.remove(pathLine);
+                pathLine.geometry.dispose();
+            }
+            if (circleMesh) {
+                scene.remove(circleMesh);
+                circleMesh.geometry.dispose();
+            }
+
+            if (!isCurveValid) return;
+
+            // 2. Create new Path Line
+            const pathGeometry = new THREE.BufferGeometry().setFromPoints(trefoilCurve.getPoints(tubularSegments));
+            pathLine = new THREE.Line(pathGeometry, new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 }));
+            scene.add(pathLine);
+            
+            // 3. Create new Tube Mesh
+            const tubeGeometry = new THREE.TubeGeometry(trefoilCurve, tubularSegments, currentRadius, radialSegments, false);
+            tubeMesh = new THREE.Mesh(tubeGeometry, new THREE.MeshPhongMaterial({ 
+                color: 0x0077ff, 
+                specular: 0xffffff, 
+                shininess: 50, 
+                transparent: true, 
+                opacity: (currentStep >= 5 ? 1.0 : 0.1) 
+            }));
+            scene.add(tubeMesh);
+
+            // 4. Create new Circle Mesh (Cross-section)
+            const circleGeometry = new THREE.CircleGeometry(currentRadius, 32);
+            // FIX: Removed circleGeometry.rotateX(Math.PI / 2); 
+            // The default normal of a CircleGeometry is (0, 0, 1)
+            const circleMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
+            circleMesh = new THREE.Mesh(circleGeometry, circleMaterial);
+            circleMesh.visible = (currentStep >= 4); 
+            scene.add(circleMesh);
+
+            // 5. Center the camera to the new curve's center (rough estimate)
+            const points = trefoilCurve.getPoints(10);
+            const center = new THREE.Vector3();
+            points.forEach(p => center.add(p));
+            center.divideScalar(points.length);
+            controls.target.copy(center);
+            camera.lookAt(controls.target);
+
+            updateVisualization();
+        }
+
+        // --- 3b. Initialize Curve from User Input ---
+        function initializeCurve() {
+            const xFunc = document.getElementById('x-func').value;
+            const yFunc = document.getElementById('y-func').value;
+            const zFunc = document.getElementById('z-func').value;
+            const errorElement = document.getElementById('error-message');
+            
+            // Update currentRadius from input
+            currentRadius = parseFloat(document.getElementById('radius-input').value);
+
+            // Reset state
+            errorElement.textContent = "";
+            errorElement.classList.add('hidden');
+            isCurveValid = true;
+
+            try {
+                // 1. Create the new curve instance
+                trefoilCurve = new UserDefinedCurve(xFunc, yFunc, zFunc);
+                
+                // 2. Regenerate Three.js elements
+                regenerateTubeAndCircle();
+
+            } catch (error) {
+                // 3. Handle errors
+                isCurveValid = false;
+                errorElement.textContent = "ERROR: " + error.message;
+                errorElement.classList.remove('hidden');
+
+                // Clear scene of old curve elements
+                if (tubeMesh) { scene.remove(tubeMesh); tubeMesh.geometry.dispose(); }
+                if (pathLine) { scene.remove(pathLine); pathLine.geometry.dispose(); }
+                if (circleMesh) { scene.remove(circleMesh); circleMesh.geometry.dispose(); }
+                
+                // Hide frame elements
+                centralPoint.position.set(0, 0, 0); 
+                T_arrow.visible = N_arrow.visible = B_arrow.visible = false;
+                centralPoint.visible = false;
+
+                console.error("Failed to generate curve:", error);
+            }
+        }
+
+
+        // --- 3c. Scene Initialization ---
+        function init() {
+            // Setup
+            const container = document.getElementById('scene-container');
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 100);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+
+            // Orbit Controls setup
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; 
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false; 
+            controls.minDistance = 5;
+            controls.maxDistance = 80; 
+            camera.position.set(20, 20, 20); // Initial position
+
+            // Lighting
+            scene.add(new THREE.AmbientLight(0x444444));
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+            
+            // FIX: Added Axis Helper for fixed coordinate reference
+            axesHelper = new THREE.AxesHelper(10); // 10 units long
+            scene.add(axesHelper);
+
+            // Central point marker
+            centralPoint = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({ color: 0xffff00 }));
+            scene.add(centralPoint);
+
+            // T, N, B Arrows
+            const arrowSize = 1.5;
+            T_arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), arrowSize, 0x00ff00, 0.4, 0.2); // Green: T (Tangent)
+            N_arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0), arrowSize, 0xff0000, 0.4, 0.2); // Red: N (Normal)
+            B_arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), arrowSize, 0x00ffff, 0.4, 0.2); // Cyan: B (Binormal)
+            scene.add(T_arrow, N_arrow, B_arrow);
+
+            // Load the default curve
+            initializeCurve();
+
+            // Explicitly call resize handler after init
+            onWindowResize();
+
+            // --- Event listeners ---
+            document.getElementById('u-slider').addEventListener('input', (e) => {
+                currentU = parseFloat(e.target.value);
+                document.getElementById('u-value').textContent = currentU.toFixed(2);
+                updateVisualization();
+            });
+
+            document.getElementById('generate-button').addEventListener('click', initializeCurve);
+            // Use 'change' event for radius to trigger full regeneration only when value settles
+            document.getElementById('radius-input').addEventListener('change', initializeCurve);
+
+            window.addEventListener('resize', onWindowResize);
+            
+            // Start the tutorial and animation
+            renderAllKaTeX();
+            updateTutorial(0);
+            animate();
+        }
+
+        // --- 4. Update Visualization ---
+        function updateVisualization() {
+            if (!isCurveValid) return;
+
+            const frame = getFrenetFrame(currentU);
+            
+            centralPoint.position.copy(frame.P);
+
+            // Update Arrows
+            T_arrow.position.copy(frame.P);
+            N_arrow.position.copy(frame.P);
+            B_arrow.position.copy(frame.P);
+
+            T_arrow.setDirection(frame.T);
+            N_arrow.setDirection(frame.N);
+            B_arrow.setDirection(frame.B);
+
+            // Update Circle position and orientation
+            if (circleMesh) {
+                circleMesh.position.copy(frame.P);
+                
+                // FIX: Use the CircleGeometry's default normal (Z-axis: 0, 0, 1) as the source, 
+                // targeting the Tangent vector (frame.T).
+                const sourceNormal = new THREE.Vector3(0, 0, 1);
+                const quaternion = new THREE.Quaternion().setFromUnitVectors(sourceNormal, frame.T);
+                circleMesh.setRotationFromQuaternion(quaternion);
+            }
+
+            // Update visibility based on step
+            const showT = currentStep >= 1;
+            const showN = currentStep >= 2;
+            const showB = currentStep >= 3;
+            const showCircle = currentStep >= 4;
+            const showTube = currentStep >= 5;
+
+            T_arrow.visible = showT;
+            N_arrow.visible = showN;
+            B_arrow.visible = showB;
+            if (circleMesh) circleMesh.visible = showCircle;
+            
+            // Tube opacity update
+            if (tubeMesh) tubeMesh.material.opacity = showTube ? 1.0 : 0.1;
+            
+            // Central point visible if T is visible
+            centralPoint.visible = showT;
+        }
+
+        // --- 5. Tutorial Content and Navigation ---
+        const tutorialSteps = [
+            {
+                title: "Step 0: The Generalized Space Curve <span class='inline-math'>\\mathbf{r}(t)</span>",
+                text: `Use the input fields above to define the X, Y, and Z components of your curve <span class='inline-math'>\\mathbf{r}(t)</span>, where <span class='inline-math'>t</span> is the angle from <span class='inline-math'>0</span> to <span class='inline-math'>2\\pi</span>. Hit "Generate Curve & Tube" to visualize it.
+                <br>The curve is defined by:
+                <div class="math">\\mathbf{r}(t) = \\left\\langle X(t), Y(t), Z(t) \\right\\rangle</div>
+                The central point (yellow sphere) shows the current position, controlled by the slider <span class='inline-math'>u</span> (which corresponds to <span class='inline-math'>t = 2\\pi u</span>).`,
+            },
+            {
+                title: "Step 1: The Unit Tangent Vector <span class='inline-math'>\\mathbf{T}</span>",
+                text: `The first step in analyzing the curve's geometry is finding the direction of motion, given by the Unit Tangent Vector <span class='inline-math'>\\mathbf{T}</span>.
+                <br><span class='inline-math'>\\mathbf{T}</span> is the normalized derivative of <span class='inline-math'>\\mathbf{r}(t)</span>:
+                <div class="math">\\mathbf{T}(t) = \\frac{\\mathbf{r}'(t)}{|\\mathbf{r}'(t)|}</div>
+                The **Green Arrow** shows <span class='inline-math'>\\mathbf{T}(t)</span>. It always points in the instantaneous direction of the curve.`,
+            },
+            {
+                title: "Step 2: The Unit Normal Vector <span class='inline-math'>\\mathbf{N}</span>",
+                text: `The Normal Vector <span class='inline-math'>\\mathbf{N}</span> describes the direction the curve is bending or turning. It points towards the instantaneous center of curvature.
+                <br><span class='inline-math'>\\mathbf{N}</span> is calculated using the direction of the change in $\\mathbf{T}$ (calculated numerically here):
+                <div class="math">\\mathbf{N}(t) = \\frac{\\mathbf{T}'(t)}{|\\mathbf{T}'(t)|}</div>
+                The **Red Arrow** shows <span class='inline-math'>\\mathbf{N}(t)</span>. It is always perpendicular to <span class='inline-math'>\\mathbf{T}</span>.`,
+            },
+            {
+                title: "Step 3: The Binormal Vector <span class='inline-math'>\\mathbf{B}</span>",
+                text: `The Binormal Vector <span class='inline-math'>\\mathbf{B}</span> completes the orthogonal coordinate system. It is found using the cross product:
+                <div class="math">\\mathbf{B}(t) = \\mathbf{T}(t) \\times \\mathbf{N}(t)</div>
+                The **Cyan Arrow** shows <span class='inline-math'>\\mathbf{B}(t)</span>. The vectors <span class='inline-math'>\\mathbf{T}</span>, <span class='inline-math'>\\mathbf{N}</span>, and <span class='inline-math'>\\mathbf{B}</span> form the **Frenet-Serret Frame**—a localized coordinate system that moves along the curve. $\\mathbf{N}$ and $\\mathbf{B}$ define the **Normal Plane**.`,
+            },
+            {
+                title: "Step 4: Creating the Circular Cross-Section <span class='inline-math'>\\mathbf{c}(t, v)</span>",
+                text: `The **Normal** (<span class='inline-math'>\\mathbf{N}</span>) and **Binormal** (<span class='inline-math'>\\mathbf{B}</span>) vectors form a basis for the Normal Plane.
+                <br>To trace a circle with radius <span class='inline-math'>a</span> in this plane, we use a trigonometric parameter <span class='inline-math'>v</span>:
+                <div class="math">\\mathbf{c}(t, v) = a \\left( \\mathbf{N}(t) \\cos v + \\mathbf{B}(t) \\sin v \\right)</div>
+                The **Green Circle** shows this cross-section at the current point <span class='inline-math'>u</span>. It lies in the plane perpendicular to the green tangent arrow ($\mathbf{T}$).`,
+            },
+            {
+                title: "Step 5: Defining the 3D Tube <span class='inline-math'>\\mathbf{f}(t, v)</span>",
+                text: `The final tube surface is defined by adding the vector from the cross-section circle <span class='inline-math'>\\mathbf{c}(t, v)</span> to the position vector <span class='inline-math'>\\mathbf{r}(t)</span>.
+                <div class="math">\\mathbf{f}(t, v) = \\mathbf{r}(t) + a \\left( \\mathbf{N}(t) \\cos v + \\mathbf{B}(t) \\sin v \\right)</div>
+                <br>As <span class='inline-math'>t</span> varies, the localized circles are swept along the path <span class='inline-math'>\\mathbf{r}(t)</span>, generating the full 3D tube surface. You can change the constant radius <span class='inline-math'>a</span> using the input field above.`,
+            },
+        ];
+
+        /**
+         * Function to render all KaTeX elements on the page.
+         */
+        function renderAllKaTeX() {
+            // Render all elements with the 'math' or 'inline-math' class
+            document.querySelectorAll('.math, .inline-math').forEach(el => {
+                // Check if the element has already been rendered by checking for the 'katex' class, 
+                // which prevents redundant rendering on static parts.
+                if (el.querySelector('.katex')) return;
+
+                const isDisplay = el.classList.contains('math');
+                // Use el.textContent, but for dynamic content updates, we must use innerHTML first.
+                const texString = isDisplay ? el.textContent.trim() : el.innerHTML.trim(); 
+                
+                try {
+                    katex.render(texString, el, { 
+                        displayMode: isDisplay,
+                        throwOnError: false 
+                    });
+                } catch (e) {
+                    console.error("KaTeX rendering error:", e);
+                }
+            });
+        }
+
+        function updateTutorial(step) {
+            currentStep = Math.min(Math.max(0, step), totalSteps - 1);
+            const data = tutorialSteps[currentStep];
+
+            // Use innerHTML to set the content (includes KaTeX strings)
+            document.getElementById('tutorial-title').innerHTML = data.title;
+            document.getElementById('tutorial-text').innerHTML = data.text;
+            
+            // Rerender KaTeX after dynamic content insertion
+            renderAllKaTeX();
+            
+            // Update button states
+            document.getElementById('prev-button').disabled = (currentStep === 0);
+            document.getElementById('next-button').textContent = (currentStep === totalSteps - 1) ? 'Finished!' : 'Next Step';
+
+            updateVisualization();
+        }
+
+        function navigate(direction) {
+            if (currentStep + direction >= 0 && currentStep + direction < totalSteps) {
+                updateTutorial(currentStep + direction);
+            }
+        }
+
+        // --- 6. Animation and Resize Handlers ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('scene-container');
+            if (container.clientWidth > 0 && container.clientHeight > 0) {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            }
+        }
+
+        // Start the application after the window loads
+        window.onload = function () {
+            init();
+        }
+    </script>
+</body>
+</html>
